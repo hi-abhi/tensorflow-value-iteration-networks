@@ -14,11 +14,12 @@ tf.app.flags.DEFINE_integer('imsize',         8,                      'Size of i
 tf.app.flags.DEFINE_float('lr',               0.001,                  'Learning rate for RMSProp')
 tf.app.flags.DEFINE_integer('epochs',         10,                     'Maximum epochs to train for')
 tf.app.flags.DEFINE_integer('k',              10,                     'Number of value iterations')
-tf.app.flags.DEFINE_integer('l',              2,                      'Channels in input layer')
-tf.app.flags.DEFINE_integer('l_h',            150,                    'Channels in initial hidden layer')
-tf.app.flags.DEFINE_integer('l_q',            10,                     'Channels in q layer (~actions)')
+tf.app.flags.DEFINE_integer('ch_i',           2,                      'Channels in input layer')
+tf.app.flags.DEFINE_integer('ch_h',           150,                    'Channels in initial hidden layer')
+tf.app.flags.DEFINE_integer('ch_q',           10,                     'Channels in q layer (~actions)')
 tf.app.flags.DEFINE_integer('batchsize',      12,                     'Batch size')
 tf.app.flags.DEFINE_integer('statebatchsize', 10,                     'Number of state inputs for each sample (real number, technically is k+1)')
+tf.app.flags.DEFINE_boolean('untied_weights', False,                   'untie weights of VI network')
 # Misc.
 tf.app.flags.DEFINE_integer('display_step',   1,                      'Print summary output every n epochs')
 tf.app.flags.DEFINE_boolean('log',            False,                  'Enable for tensorboard summary')
@@ -27,33 +28,18 @@ tf.app.flags.DEFINE_string('logdir',          '/tmp/vintf/',          'Directory
 config = tf.app.flags.FLAGS
 
 # symbolic input image tensor where typically first channel is image, second is the reward prior
-X  = tf.placeholder(tf.float32, name="X",  shape=[None, config.imsize, config.imsize, config.l])
+X  = tf.placeholder(tf.float32, name="X",  shape=[None, config.imsize, config.imsize, config.ch_i])
 # symbolic input batches of vertical positions
 S1 = tf.placeholder(tf.int32,   name="S1", shape=[None, config.statebatchsize])
 # symbolic input batches of horizontal positions
 S2 = tf.placeholder(tf.int32,   name="S2", shape=[None, config.statebatchsize])
 y  = tf.placeholder(tf.int32,   name="y",  shape=[None])
 
-l   = config.l
-l_h = config.l_h
-l_q = config.l_q
-
-# Store layers weight & bias
-biases = {
-  'bias': tf.Variable(np.random.randn(1, 1, 1, l_h) * 0.01, dtype=tf.float32)
-}
-weights = {
-  # weights from inputs to q layer (~reward in Bellman equation)
-  'w0'  : tf.Variable(np.random.randn(3, 3, l, l_h) * 0.01, dtype=tf.float32),
-  'w1'  : tf.Variable(np.random.randn(1, 1, l_h, 1) * 0.01, dtype=tf.float32),
-  'w'   : tf.Variable(np.random.randn(3, 3, 1, l_q) * 0.01, dtype=tf.float32),
-  # feedback weights from v layer into q layer (~transition probabilities in Bellman equation)
-  'w_fb': tf.Variable(np.random.randn(3, 3, 1, l_q) * 0.01, dtype=tf.float32),
-  'w_o' : tf.Variable(np.random.randn(l_q, 8)       * 0.01, dtype=tf.float32),
-}
-
 # Construct model (Value Iteration Network)
-nn = VI_Block(X, S1, S2, weights, biases, config.statebatchsize, config.k)
+if (config.untied_weights):
+  nn = VI_Untied_Block(X, S1, S2, config)
+else:
+  nn = VI_Block(X, S1, S2, config)
 
 # Define loss and optimizer
 dim = tf.shape(y)[0]
