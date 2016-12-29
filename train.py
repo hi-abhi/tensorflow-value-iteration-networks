@@ -12,14 +12,14 @@ tf.app.flags.DEFINE_string('input',           'data/gridworld_8.mat', 'Path to d
 tf.app.flags.DEFINE_integer('imsize',         8,                      'Size of input image')
 # Parameters
 tf.app.flags.DEFINE_float('lr',               0.001,                  'Learning rate for RMSProp')
-tf.app.flags.DEFINE_integer('epochs',         10,                     'Maximum epochs to train for')
+tf.app.flags.DEFINE_integer('epochs',         30,                     'Maximum epochs to train for')
 tf.app.flags.DEFINE_integer('k',              10,                     'Number of value iterations')
 tf.app.flags.DEFINE_integer('ch_i',           2,                      'Channels in input layer')
 tf.app.flags.DEFINE_integer('ch_h',           150,                    'Channels in initial hidden layer')
 tf.app.flags.DEFINE_integer('ch_q',           10,                     'Channels in q layer (~actions)')
 tf.app.flags.DEFINE_integer('batchsize',      12,                     'Batch size')
 tf.app.flags.DEFINE_integer('statebatchsize', 10,                     'Number of state inputs for each sample (real number, technically is k+1)')
-tf.app.flags.DEFINE_boolean('untied_weights', False,                   'untie weights of VI network')
+tf.app.flags.DEFINE_boolean('untied_weights', False,                  'Untie weights of VI network')
 # Misc.
 tf.app.flags.DEFINE_integer('display_step',   1,                      'Print summary output every n epochs')
 tf.app.flags.DEFINE_boolean('log',            False,                  'Enable for tensorboard summary')
@@ -79,7 +79,7 @@ with tf.Session() as sess:
         # Run optimization op (backprop) and cost op (to get loss value)
         fd = {X: Xtrain[i:j], S1: S1train[i:j], S2: S2train[i:j],
               y: ytrain[i * config.statebatchsize:j * config.statebatchsize]}
-        _, e_, c_, = sess.run([optimizer, err, cost], feed_dict=fd)
+        _, e_, c_ = sess.run([optimizer, err, cost], feed_dict=fd)
         avg_err += e_
         avg_cost += c_
     # Display logs per epoch step
