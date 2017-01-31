@@ -57,9 +57,11 @@ def VI_Block(X, S1, S2, config):
   idx_in = tf.transpose(tf.stack([ins1, ins2, rprn]), [1, 0])
   q_out = tf.gather_nd(tf.transpose(q, [2, 3, 0, 1]), idx_in, name="q_out")
 
+  # add logits
+  logits = tf.matmul(q_out, w_o)
   # softmax output weights
-  output = tf.nn.softmax(tf.matmul(q_out, w_o), name="output")
-  return output
+  output = tf.nn.softmax(logits, name="output")
+  return logits, output
 
 # similar to the normal VI_Block except there are separate weights for each q layer
 def VI_Untied_Block(X, S1, S2, config):
@@ -113,6 +115,8 @@ def VI_Untied_Block(X, S1, S2, config):
   idx_in = tf.transpose(tf.stack([ins1, ins2, rprn]), [1, 0])
   q_out = tf.gather_nd(tf.transpose(q, [2, 3, 0, 1]), idx_in, name="q_out")
 
+  # add logits
+  logits = tf.matmul(q_out, w_o)
   # softmax output weights
-  output = tf.nn.softmax(tf.matmul(q_out, w_o), name="output")
-  return output
+  output = tf.nn.softmax(logits, name="output")
+  return logits, output

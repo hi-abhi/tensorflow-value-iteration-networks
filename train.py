@@ -37,14 +37,23 @@ y  = tf.placeholder(tf.int32,   name="y",  shape=[None])
 
 # Construct model (Value Iteration Network)
 if (config.untied_weights):
-  nn = VI_Untied_Block(X, S1, S2, config)
+  logits, nn = VI_Untied_Block(X, S1, S2, config)
 else:
-  nn = VI_Block(X, S1, S2, config)
+  logits, nn = VI_Block(X, S1, S2, config)
 
 # Define loss and optimizer
-dim = tf.shape(y)[0]
-cost_idx = tf.concat(1, [tf.reshape(tf.range(dim), [dim,1]), tf.reshape(y, [dim,1])])
-cost = -tf.reduce_mean(tf.gather_nd(tf.log(nn), [cost_idx]))
+# use sparse_softmax_cross_entropy_with_logits replacing log(nn)
+y_ = tf.cast(y, tf.int64)
+cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
+    logits, y_, name='cross_entropy')
+cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy_mean')
+tf.add_to_collection('losses', cross_entropy_mean)
+
+cost = tf.add_n(tf.get_collection('losses'), name='total_loss')
+#dim = tf.shape(y)[0]
+#cost_idx = tf.concat(1, [tf.reshape(tf.range(dim), [dim,1]), tf.reshape(y, [dim,1])])
+#cost = -tf.reduce_mean(tf.gather_nd(tf.log(nn), [cost_idx]))
+
 optimizer = tf.train.RMSPropOptimizer(learning_rate=config.lr, epsilon=1e-6, centered=True).minimize(cost)
 
 # Test model & calculate accuracy
