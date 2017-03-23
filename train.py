@@ -1,11 +1,9 @@
 import time
 import numpy as np
 import tensorflow as tf
-from data  import *
-from model import *
-from utils import *
-
-np.random.seed(0)
+from data  import process_gridworld_data
+from model import VI_Block, VI_Untied_Block
+from utils import fmt_row
 
 # Data
 tf.app.flags.DEFINE_string('input',           'data/gridworld_8.mat', 'Path to data')
@@ -21,11 +19,14 @@ tf.app.flags.DEFINE_integer('batchsize',      12,                     'Batch siz
 tf.app.flags.DEFINE_integer('statebatchsize', 10,                     'Number of state inputs for each sample (real number, technically is k+1)')
 tf.app.flags.DEFINE_boolean('untied_weights', False,                  'Untie weights of VI network')
 # Misc.
+tf.app.flags.DEFINE_integer('seed',           0,                      'Random seed for numpy')
 tf.app.flags.DEFINE_integer('display_step',   1,                      'Print summary output every n epochs')
 tf.app.flags.DEFINE_boolean('log',            False,                  'Enable for tensorboard summary')
 tf.app.flags.DEFINE_string('logdir',          '/tmp/vintf/',          'Directory to store tensorboard summary')
 
 config = tf.app.flags.FLAGS
+
+np.random.seed(config.seed)
 
 # symbolic input image tensor where typically first channel is image, second is the reward prior
 X  = tf.placeholder(tf.float32, name="X",  shape=[None, config.imsize, config.imsize, config.ch_i])
@@ -37,23 +38,18 @@ y  = tf.placeholder(tf.int32,   name="y",  shape=[None])
 
 # Construct model (Value Iteration Network)
 if (config.untied_weights):
-  logits, nn = VI_Untied_Block(X, S1, S2, config)
+    logits, nn = VI_Untied_Block(X, S1, S2, config)
 else:
-  logits, nn = VI_Block(X, S1, S2, config)
+    logits, nn = VI_Block(X, S1, S2, config)
 
 # Define loss and optimizer
-# use sparse_softmax_cross_entropy_with_logits replacing log(nn)
 y_ = tf.cast(y, tf.int64)
 cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
-    logits, y_, name='cross_entropy')
+    logits=logits, labels=y_, name='cross_entropy')
 cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy_mean')
 tf.add_to_collection('losses', cross_entropy_mean)
 
 cost = tf.add_n(tf.get_collection('losses'), name='total_loss')
-#dim = tf.shape(y)[0]
-#cost_idx = tf.concat(1, [tf.reshape(tf.range(dim), [dim,1]), tf.reshape(y, [dim,1])])
-#cost = -tf.reduce_mean(tf.gather_nd(tf.log(nn), [cost_idx]))
-
 optimizer = tf.train.RMSPropOptimizer(learning_rate=config.lr, epsilon=1e-6, centered=True).minimize(cost)
 
 # Test model & calculate accuracy
@@ -68,44 +64,44 @@ Xtrain, S1train, S2train, ytrain, Xtest, S1test, S2test, ytest = process_gridwor
 
 # Launch the graph
 with tf.Session() as sess:
-  if config.log:
-    for var in tf.trainable_variables():
-      tf.summary.histogram(var.op.name, var)
-    summary_op = tf.summary.merge_all()
-    summary_writer = tf.summary.FileWriter(config.logdir, sess.graph)
-  sess.run(init)
-
-  batch_size    = config.batchsize
-  print(fmt_row(10, ["Epoch", "Train Cost", "Train Err", "Epoch Time"]))
-  for epoch in range(int(config.epochs)):
-    tstart = time.time()
-    avg_err, avg_cost = 0.0, 0.0
-    num_batches = int(Xtrain.shape[0]/batch_size)
-    # Loop over all batches
-    for i in range(0, Xtrain.shape[0], batch_size):
-      j = i + batch_size
-      if j <= Xtrain.shape[0]:
-        # Run optimization op (backprop) and cost op (to get loss value)
-        fd = {X: Xtrain[i:j], S1: S1train[i:j], S2: S2train[i:j],
-              y: ytrain[i * config.statebatchsize:j * config.statebatchsize]}
-        _, e_, c_ = sess.run([optimizer, err, cost], feed_dict=fd)
-        avg_err += e_
-        avg_cost += c_
-    # Display logs per epoch step
-    if epoch % config.display_step == 0:
-      elapsed = time.time() - tstart
-      print(fmt_row(10, [epoch, avg_cost/num_batches, avg_err/num_batches, elapsed]))
     if config.log:
-      summary = tf.Summary()
-      summary.ParseFromString(sess.run(summary_op))
-      summary.value.add(tag='Average error', simple_value=float(avg_err/num_batches))
-      summary.value.add(tag='Average cost', simple_value=float(avg_cost/num_batches))
-      summary_writer.add_summary(summary, epoch)
-  print("Finished training!")
+        for var in tf.trainable_variables():
+            tf.summary.histogram(var.op.name, var)
+        summary_op = tf.summary.merge_all()
+        summary_writer = tf.summary.FileWriter(config.logdir, sess.graph)
+    sess.run(init)
 
-  # Test model
-  correct_prediction = tf.cast(tf.argmax(nn, 1), tf.int32)
-  # Calculate accuracy
-  accuracy = tf.reduce_mean(tf.cast(tf.not_equal(correct_prediction, y), dtype=tf.float32))
-  acc = accuracy.eval({X: Xtest, S1: S1test, S2: S2test, y: ytest})
-  print("Accuracy: {}%".format(100 * (1 - acc)))
+    batch_size = config.batchsize
+    print(fmt_row(10, ["Epoch", "Train Cost", "Train Err", "Epoch Time"]))
+    for epoch in range(int(config.epochs)):
+        tstart = time.time()
+        avg_err, avg_cost = 0.0, 0.0
+        num_batches = int(Xtrain.shape[0]/batch_size)
+        # Loop over all batches
+        for i in range(0, Xtrain.shape[0], batch_size):
+            j = i + batch_size
+            if j <= Xtrain.shape[0]:
+                # Run optimization op (backprop) and cost op (to get loss value)
+                fd = {X: Xtrain[i:j], S1: S1train[i:j], S2: S2train[i:j],
+                    y: ytrain[i * config.statebatchsize:j * config.statebatchsize]}
+                _, e_, c_ = sess.run([optimizer, err, cost], feed_dict=fd)
+                avg_err += e_
+                avg_cost += c_
+        # Display logs per epoch step
+        if epoch % config.display_step == 0:
+            elapsed = time.time() - tstart
+            print(fmt_row(10, [epoch, avg_cost/num_batches, avg_err/num_batches, elapsed]))
+        if config.log:
+            summary = tf.Summary()
+            summary.ParseFromString(sess.run(summary_op))
+            summary.value.add(tag='Average error', simple_value=float(avg_err/num_batches))
+            summary.value.add(tag='Average cost', simple_value=float(avg_cost/num_batches))
+            summary_writer.add_summary(summary, epoch)
+    print("Finished training!")
+
+    # Test model
+    correct_prediction = tf.cast(tf.argmax(nn, 1), tf.int32)
+    # Calculate accuracy
+    accuracy = tf.reduce_mean(tf.cast(tf.not_equal(correct_prediction, y), dtype=tf.float32))
+    acc = accuracy.eval({X: Xtest, S1: S1test, S2: S2test, y: ytest})
+    print(f'Accuracy: {100 * (1 - acc)}%')
