@@ -35,5 +35,4 @@ The 8x8 GridWorld model converges in under 30 epochs with about ~98.5% accuracy.
 
 * [Value Iteration Networks on arXiv](https://arxiv.org/abs/1602.02867)
 * [Aviv Tamar's (author) original implementation in Theano](https://github.com/avivt/VIN)
-* [NIPS 2016 Supplemental](http://tx.technion.ac.il/~avivt/nips16supp.pdf)
-* [ICML Slides](http://technion.ac.il/~danielm/icml_slides/Talk7.pdf)
+* [ICML Slides](http://docs.wixstatic.com/ugd/3195dc_6ab5cea3189741a3b605fc6fc1d79bb8.pdf)
